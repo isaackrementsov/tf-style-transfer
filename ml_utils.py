@@ -3,8 +3,6 @@
 import tensorflow as tf
 import keras.applications.vgg19 as vgg19
 import numpy as np
-import time
-import functools
 
 import image_utils as images
 import math_utils as math
@@ -89,6 +87,7 @@ def train_step(image, extractor, optimizer, weights, targets, num_layers, shift)
     with tf.GradientTape() as tape:
         # Get current activations
         outputs = extractor(image)
+        
         loss = style_content_loss(
             outputs,
             weights['style'],
