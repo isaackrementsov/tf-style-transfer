@@ -9,10 +9,10 @@ import math_utils as math
 
 
 # Main function for neural network training
-def style_transfer(content_image, style_image,
+def style_transfer(previous_frame, content_image, style_image,
         content_layers, style_layers,
         shift=1,
-        weight_content=1, weight_style=1, weight_denoise=1,
+        weight_content=1, weight_style=1, weight_denoise=1, weight_frame=1,
         learning_rate=1, epochs=10):
 
         # Feature extractor to get activations from VGG19 layers
@@ -20,6 +20,7 @@ def style_transfer(content_image, style_image,
 
         # Features corresponding to style and image layers
         style_targets = extractor(style_image)['style']
+        frame_targets = extractor(previous_frame)['style']
         content_targets = extractor(content_image)['content']
 
         # Start the mixed image out with the original content image
@@ -38,8 +39,8 @@ def style_transfer(content_image, style_image,
                     image,
                     extractor,
                     optimizer,
-                    {'style': weight_style, 'content': weight_content, 'denoise': weight_denoise},
-                    {'style': style_targets, 'content': content_targets},
+                    {'style': weight_style, 'content': weight_content, 'denoise': weight_denoise, 'frame': weight_frame},
+                    {'style': style_targets, 'content': content_targets, 'frame': frame_targets},
                     {'style': len(style_layers), 'content': len(content_layers)},
                     shift
                 ))
@@ -51,7 +52,7 @@ def style_transfer(content_image, style_image,
 
 
 # Get combined style and content loss for mixed image
-def style_content_loss(outputs, weight_style, weight_content, num_style_layers, num_content_layers, style_targets, content_targets):
+def style_content_loss(outputs, weight_style, weight_content, weight_frame, num_style_layers, num_content_layers, style_targets, content_targets, frame_targets):
     # Get extracted style and content activations
     style_outputs = outputs['style']
     content_outputs = outputs['content']
@@ -66,8 +67,13 @@ def style_content_loss(outputs, weight_style, weight_content, num_style_layers, 
     # Multiply by how important content is
     content_loss *= weight_content / num_content_layers
 
+    # Get style loss from previous frame
+    frame_loss = tf.add_n([tf.reduce_mean((style_outputs[name] - frame_targets[name])**2) for name in style_outputs.keys()])
+    # Multiply by how import frame style is
+    frame_loss *= weight_frame / num_content_layers
+
     # Combine both losses
-    loss = style_loss + content_loss
+    loss = style_loss + content_loss + frame_loss
 
     return loss
 
@@ -87,15 +93,17 @@ def train_step(image, extractor, optimizer, weights, targets, num_layers, shift)
     with tf.GradientTape() as tape:
         # Get current activations
         outputs = extractor(image)
-        
+
         loss = style_content_loss(
             outputs,
             weights['style'],
             weights['content'],
+            weights['frame'],
             num_layers['style'],
             num_layers['content'],
             targets['style'],
-            targets['content']
+            targets['content'],
+            targets['frame']
         )
 
         # Add denoise loss
