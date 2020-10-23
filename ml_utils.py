@@ -88,7 +88,7 @@ def denoise_loss(image, shift):
 
 
 # Descend the gradient
-@tf.function()
+#@tf.function()
 def train_step(image, extractor, optimizer, weights, targets, num_layers, shift):
     with tf.GradientTape() as tape:
         # Get current activations
